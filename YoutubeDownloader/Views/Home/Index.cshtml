@@ -1,0 +1,133 @@
+﻿@{
+    ViewData["Title"] = "Download YouTube Video";
+}
+
+<h2>@ViewData["Title"]</h2>
+
+<form method="post" asp-action="Download">
+    
+    <div class="form-group">
+        <input type="text" class="form-control" id="videoUrl" name="videoUrl" required />
+        <button type="button" class="btn btn-secondary ml-2" id="getQualitiesBtn">Search</button>
+    </div>
+    
+
+    <div id="loadingMessage" style="display:none;">
+        Searching for video<span id="dots">.</span>
+    </div>
+
+    <label style="display:none;" id="videoTitleLabel" for="videoUrl"></label>
+
+    <div id="CardDiv">
+        <div id="thumbnailSection" style="display:none;">
+            <img id="videoThumbnail" class="img-thumbnail" alt="Video Thumbnail" style="width: 100%; height: auto;">
+        </div>
+        <div class="form-group" id="qualitySection" style="display:none;">
+            <label style="margin-bottom: 10px; font-size: 24px;" for="qualityLabel">Select Quality</label>
+            <select class="form-control" style="font-size: 16px;" id="qualityLabel" name="qualityLabel">
+            </select>
+            <button id="ButtonDownload" type="submit" style="display:none;" class="btn btn-primary mt-3">Download</button>
+        </div>
+    </div>
+   
+
+    
+
+    
+</form>
+
+@section Scripts {
+    <script>
+        let dotInterval;
+
+        document.getElementById('getQualitiesBtn').addEventListener('click', async () => {
+            const videoUrl = document.getElementById('videoUrl').value;
+            const loadingMessage = document.getElementById('loadingMessage');
+            const dots = document.getElementById('dots');
+            const qualitySection = document.getElementById('qualitySection');
+            const ButtonDownload = document.getElementById('ButtonDownload');
+            const thumbnailSection = document.getElementById('thumbnailSection');
+            const videoTitleLabel = document.getElementById('videoTitleLabel');
+
+            function isDisplayBlock(qualitySection, ButtonDownload, thumbnailSection) {
+                if (qualitySection.style.display == 'block') {
+                    qualitySection.style.display = 'none';
+                    ButtonDownload.style.display = 'none';
+                    thumbnailSection.style.display = 'none';
+                    videoTitleLabel.style.display = 'none';
+                }
+            }
+
+            isDisplayBlock(qualitySection, ButtonDownload, thumbnailSection);
+            
+            loadingMessage.style.display = 'block';
+            let dotCount = 1;
+            dotInterval = setInterval(() => {
+                dots.innerText = '.'.repeat(dotCount);
+                dotCount = (dotCount % 3) + 1;
+            }, 350);
+
+            const response = await fetch('/Home/GetQualities', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ videoUrl: videoUrl })
+            });
+
+            if (response.ok) {
+                
+                const qualities = await response.json();
+                const qualitySelect = document.getElementById('qualityLabel');
+                qualitySelect.innerHTML = '';
+
+                qualities.forEach(quality => {
+                    const option = document.createElement('option');
+                    option.value = quality;
+                    option.text = quality;
+                    qualitySelect.appendChild(option);
+                });
+
+                const thumbnailResponse = await fetch('/Home/GetThumbnail?url=' + encodeURIComponent(videoUrl));
+                if (thumbnailResponse.ok) {
+                    const thumbnailUrl = await thumbnailResponse.json();
+                    document.getElementById('videoThumbnail').src = thumbnailUrl;
+                }
+
+                const titleResponse = await fetch('/Home/GetVideoTitle?url=' + encodeURIComponent(videoUrl));
+                if (titleResponse.ok) {
+                    const videoTitle = await titleResponse.text();
+                    document.getElementById('videoTitleLabel').innerText = videoTitle;
+                }
+
+                qualitySection.style.display = 'block';
+                ButtonDownload.style.display = 'block';
+                thumbnailSection.style.display = 'block';
+                videoTitleLabel.style.display = 'block';
+                
+                
+            } else {
+                alert('Error fetching video qualities.');
+            }
+
+            clearInterval(dotInterval);
+            loadingMessage.style.display = 'none';
+        });
+        async function checkDownloadStatus(videoUrl) {
+            const response = await fetch('/Home/CheckDownloadStatus', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ videoUrl: videoUrl })
+            });
+
+            if (response.ok) {
+                const result = await response.text();
+                return result === 'Downloaded';
+            } else {
+                return false;
+            }
+        }
+    </script>
+}
